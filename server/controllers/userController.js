@@ -1,4 +1,4 @@
-// In server/controllers/userController.js
+// File: server/controllers/userController.js
 
 import User from "../models/User.js";
 
@@ -6,7 +6,6 @@ import User from "../models/User.js";
 // @route   GET /api/users/profile
 // @access  Private
 const getUserProfile = async (req, res) => {
-  // req.user is attached by the 'protect' middleware
   if (req.user) {
     res.json(req.user);
   } else {
@@ -35,40 +34,55 @@ const updateUserProfile = async (req, res) => {
         req.body.socialLinks.twitter || user.socialLinks.twitter;
       user.socialLinks.github =
         req.body.socialLinks.github || user.socialLinks.github;
-
       user.markModified("socialLinks");
     }
 
     if (user.role === "mentor") {
+      // Use 'expertise' as per your schema
       user.expertise = req.body.expertise || user.expertise;
       user.availability = req.body.availability || user.availability;
     } else {
-      // It's a mentee
       user.learningGoals = req.body.learningGoals || user.learningGoals;
     }
 
     const updatedUser = await user.save();
-    // Return all fields
     res.json(updatedUser);
   } else {
     res.status(404).json({ message: "User not found" });
   }
 };
 
-// @desc    Get all users with the role of 'mentor'
+// @desc    Get all users with the role of 'mentor' (With Search & Filter)
 // @route   GET /api/users/mentors
-// @access  Private (for any logged-in user)
+// @access  Public (or Private, depending on your auth setup)
 const getAllMentors = async (req, res) => {
   try {
     const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 9; // e.g., 9 mentors per page for a 3x3 grid
+    const limit = Number(req.query.limit) || 9;
     const skip = (page - 1) * limit;
 
-    // Get the total count of mentors for pagination calculation
-    const count = await User.countDocuments({ role: "mentor" });
+    // 1. Extract search parameters from the URL
+    const { search, skill } = req.query;
 
-    const mentors = await User.find({ role: "mentor" })
-      .select("_id name email expertise")
+    // 2. Build the database query object
+    let query = { role: "mentor" };
+
+    // If user searched for a name, add regex match
+    if (search) {
+      query.name = { $regex: search, $options: "i" };
+    }
+
+    // If user filtered by skill, check the 'expertise' array
+    if (skill) {
+      query.expertise = { $regex: skill, $options: "i" };
+    }
+
+    // 3. Get total count based on the FILTERED query (for correct pagination)
+    const count = await User.countDocuments(query);
+
+    // 4. Fetch the mentors using the filter, limit, and skip
+    const mentors = await User.find(query)
+      .select("_id name email expertise title bio avatar") // Select fields needed for the card
       .limit(limit)
       .skip(skip);
 
@@ -76,8 +90,10 @@ const getAllMentors = async (req, res) => {
       mentors,
       totalPages: Math.ceil(count / limit),
       currentPage: page,
+      totalMentors: count,
     });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: "Server Error" });
   }
 };
@@ -88,7 +104,7 @@ const getAllMentors = async (req, res) => {
 const getMentorById = async (req, res) => {
   try {
     const mentor = await User.findById(req.params.id).select(
-      "_id name role email expertise availability"
+      "_id name role email expertise availability title bio avatar"
     );
 
     if (mentor && mentor.role === "mentor") {
@@ -101,5 +117,4 @@ const getMentorById = async (req, res) => {
   }
 };
 
-// Make sure to export the new function
 export { getUserProfile, updateUserProfile, getAllMentors, getMentorById };
