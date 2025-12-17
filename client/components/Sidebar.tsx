@@ -141,7 +141,7 @@ export default function Sidebar() {
             />
           ) : (
             <div className="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center font-bold text-sky-800 text-lg border-2 border-sky-200">
-              {getInitials(session?.user?.name)}
+              {getInitials(session?.user?.name || "")}
             </div>
           )}
           <div>
