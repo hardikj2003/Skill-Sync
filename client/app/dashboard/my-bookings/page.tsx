@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useToast } from "../../../context/ToastContext";
 import Button from "../../../components/ui/Button";
 import BookingCardSkeleton from "@/components/skeleton/BookingCardSkeleton";
+import ReviewModal from "@/components/ReviewModal";
 
 // (Interfaces and helper components like formatDate, StatusBadge remain the same)
 interface Booking {
@@ -17,6 +18,7 @@ interface Booking {
   sessionTimeSlot: string;
   status: "pending" | "confirmed" | "rejected" | "completed";
   createdAt: string;
+  hasBeenReviewed: boolean;
 }
 
 const formatDate = (dateString: string) =>
@@ -97,6 +99,8 @@ export default function MyBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
   // --- REFACTORED FETCH LOGIC ---
   const fetchBookings = useCallback(async () => {
@@ -144,6 +148,35 @@ export default function MyBookingsPage() {
     } catch (err) {
       showToast(`Failed to update booking status.`, "error");
     }
+  };
+
+  const handleReviewSubmit = async (
+    bookingId: string,
+    rating: number,
+    comment: string
+  ) => {
+    if (!session) return;
+    try {
+      const config = {
+        headers: { Authorization: `Bearer ${session.user.token}` },
+      };
+      await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/reviews`,
+        { bookingId, rating, comment },
+        config
+      );
+      showToast("Review submitted successfully!", "success");
+      fetchBookings(); // Refetch to update the UI
+      setIsReviewModalOpen(false);
+      setSelectedBooking(null);
+    } catch (err) {
+      showToast("Failed to submit review.", "error");
+    }
+  };
+
+  const openReviewModal = (booking: Booking) => {
+    setSelectedBooking(booking);
+    setIsReviewModalOpen(true);
   };
 
   // Memoize the categorized bookings (no changes here)
@@ -340,13 +373,30 @@ export default function MyBookingsPage() {
                   <div className="flex items-center gap-4">
                     <StatusBadge status={booking.status} />
                     {/* This is the "Button Swap" logic */}
-                    {booking.status === "completed" && (
-                      <Link href={`/dashboard/summarize/${booking._id}`}>
-                        <Button className="bg-indigo-600 hover:bg-indigo-700 !px-3 !py-1">
-                          Summarize Session
+                    {booking.status === "completed" &&
+                      session?.user.role === "mentee" &&
+                      !booking.hasBeenReviewed && (
+                        <Button
+                          onClick={() => openReviewModal(booking)}
+                          className="bg-blue-600 hover:bg-blue-700 !px-3 !py-1"
+                        >
+                          Leave a Review
                         </Button>
-                      </Link>
-                    )}
+                      )}
+                    {booking.status === "completed" &&
+                      booking.hasBeenReviewed && (
+                        <p className="text-sm text-slate-500 italic">
+                          Review Submitted
+                        </p>
+                      )}
+                    {booking.status === "completed" &&
+                      session?.user.role === "mentor" && (
+                        <Link href={`/dashboard/summarize/${booking._id}`}>
+                          <Button className="bg-indigo-600 hover:bg-indigo-700 !px-3 !py-1">
+                            Summarize Session
+                          </Button>
+                        </Link>
+                      )}
                   </div>
                 </div>
               ))}
@@ -356,6 +406,13 @@ export default function MyBookingsPage() {
           )}
         </div>
       </div>
+      {isReviewModalOpen && selectedBooking && (
+        <ReviewModal
+          booking={selectedBooking}
+          onClose={() => setIsReviewModalOpen(false)}
+          onSubmit={handleReviewSubmit}
+        />
+      )}
     </div>
   );
 }

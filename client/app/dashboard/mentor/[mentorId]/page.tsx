@@ -8,8 +8,21 @@ import Button from "@/components/ui/Button";
 import { useToast } from "@/context/ToastContext";
 import ProfilePageSkeleton from "@/components/skeleton/ProfilePageSkeleton";
 import PageHeader from "@/components/ui/PageHeader";
+import StarRating from "@/components/ui/StarRating";
 
 // --- TYPE DEFINITIONS ---
+interface Review {
+  _id: string;
+  mentee: {
+    _id: string;
+    name: string;
+    avatar?: string;
+  };
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+
 interface MentorProfile {
   _id: string;
   name: string;
@@ -18,6 +31,8 @@ interface MentorProfile {
   avatar: string;
   bio: string;
   availability: { day: string; slots: { start: string; end: string }[] }[];
+  reviews: Review[];
+  averageRating: number;
 }
 
 // --- HELPER FUNCTIONS & COMPONENTS ---
@@ -88,7 +103,7 @@ const BookingModal = ({
 
   const handleConfirm = () => {
     onConfirm({
-      mentorId: mentor._id, 
+      mentorId: mentor._id,
       sessionDate: day,
       sessionTimeSlot: `${slot.start} - ${slot.end}`,
       userMessage: message,
@@ -196,6 +211,8 @@ export default function MentorProfilePage() {
 
   const [mentor, setMentor] = useState<MentorProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [averageRating, setAverageRating] = useState(0);
 
   const [showModal, setShowModal] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<any>(null);
@@ -229,28 +246,45 @@ export default function MentorProfilePage() {
   ];
 
   useEffect(() => {
-    const fetchMentor = async () => {
+    const fetchMentorAndReviews = async () => {
       if (session && mentorId) {
+        setIsLoading(true);
         try {
-          const config = {
+          // Fetch mentor profile
+          const mentorConfig = {
             headers: { Authorization: `Bearer ${session.user.token}` },
           };
-          const { data } = await axios.get(
+          const { data: mentorData } = await axios.get(
             `${process.env.NEXT_PUBLIC_API_URL}/api/users/mentors/${mentorId}`,
-            config
+            mentorConfig
           );
-          if (!data.availability || data.availability.length === 0) {
-            data.availability = mockAvailability;
+          if (!mentorData.availability || mentorData.availability.length === 0) {
+            mentorData.availability = mockAvailability;
           }
-          setMentor(data);
+          setMentor(mentorData);
+
+          // Fetch reviews
+          const { data: reviewsData } = await axios.get(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/reviews/mentor/${mentorId}`
+          );
+          setReviews(reviewsData);
+
+          // Calculate average rating
+          if (reviewsData.length > 0) {
+            const totalRating = reviewsData.reduce(
+              (acc: number, review: Review) => acc + review.rating,
+              0
+            );
+            setAverageRating(totalRating / reviewsData.length);
+          }
         } catch (err) {
-          showToast("Failed to fetch mentor profile.", "error");
+          showToast("Failed to fetch mentor data.", "error");
         } finally {
           setIsLoading(false);
         }
       }
     };
-    fetchMentor();
+    fetchMentorAndReviews();
   }, [session, mentorId, showToast]);
 
   const handleSlotClick = (slot: any, day: string) => {
@@ -341,6 +375,17 @@ export default function MentorProfilePage() {
                   {mentor.name}
                 </h1>
                 <p className="text-slate-500 mt-1">{mentor.email}</p>
+                {reviews.length > 0 && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <StarRating rating={averageRating} />
+                    <span className="text-slate-600 font-bold">
+                      {averageRating.toFixed(1)}
+                    </span>
+                    <span className="text-slate-500">
+                      ({reviews.length} reviews)
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -360,6 +405,44 @@ export default function MentorProfilePage() {
               </div>
             </div>
           </div>
+
+          {/* Reviews Section */}
+          {reviews.length > 0 && (
+            <div className="mt-8 bg-white p-8 rounded-xl shadow-lg border border-slate-200">
+              <h2 className="text-2xl font-bold text-slate-700">Reviews</h2>
+              <div className="mt-6 space-y-6">
+                {reviews.map((review) => (
+                  <div key={review._id} className="flex gap-4">
+                    <div className="flex-shrink-0">
+                      {review.mentee.avatar ? (
+                        <img
+                          src={review.mentee.avatar}
+                          alt={review.mentee.name}
+                          className="w-12 h-12 rounded-full"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-500">
+                          {getInitials(review.mentee.name)}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-800">
+                        {review.mentee.name}
+                      </p>
+                      <div className="flex items-center gap-2 my-1">
+                        <StarRating rating={review.rating} />
+                        <span className="text-xs text-slate-500">
+                          {new Date(review.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <p className="text-slate-600">{review.comment}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Availability Section */}
           <div className="mt-8 bg-white p-8 rounded-xl shadow-lg border border-slate-200">

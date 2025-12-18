@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import StarRating from "./ui/StarRating"; // Import the new component
 
 // Define the shape of the mentor prop
 interface Mentor {
@@ -9,6 +10,8 @@ interface Mentor {
   name: string;
   email: string;
   expertise: string[];
+  averageRating?: number; // Optional, as not all mentors may have ratings
+  reviewCount?: number;   // Optional
 }
 
 interface MentorCardProps {
@@ -37,6 +40,19 @@ const MentorCard: React.FC<MentorCardProps> = ({ mentor }) => {
               {mentor.name}
             </h3>
             <p className="text-sm text-slate-500 mt-1">{mentor.email}</p>
+            {/* --- RATING DISPLAY --- */}
+            {mentor.averageRating !== undefined && mentor.reviewCount !== undefined ? (
+              <div className="flex items-center gap-2 mt-2">
+                <StarRating rating={mentor.averageRating} />
+                <span className="text-xs text-slate-500">
+                  ({mentor.reviewCount} {mentor.reviewCount === 1 ? 'review' : 'reviews'})
+                </span>
+              </div>
+            ) : (
+              <div className="mt-2">
+                <p className="text-xs text-slate-400 italic">No reviews yet</p>
+              </div>
+            )}
           </div>
         </div>
 

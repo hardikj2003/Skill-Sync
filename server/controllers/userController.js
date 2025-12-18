@@ -1,6 +1,7 @@
 // File: server/controllers/userController.js
 
 import User from "../models/User.js";
+import Review from "../models/Review.js";
 
 // @desc    Get user profile
 // @route   GET /api/users/profile
@@ -61,30 +62,52 @@ const getAllMentors = async (req, res) => {
     const limit = Number(req.query.limit) || 9;
     const skip = (page - 1) * limit;
 
-    // 1. Extract search parameters from the URL
     const { search, skill } = req.query;
 
-    // 2. Build the database query object
-    let query = { role: "mentor" };
-
-    // If user searched for a name, add regex match
+    let matchQuery = { role: "mentor" };
     if (search) {
-      query.name = { $regex: search, $options: "i" };
+      matchQuery.name = { $regex: search, $options: "i" };
     }
-
-    // If user filtered by skill, check the 'expertise' array
     if (skill) {
-      query.expertise = { $regex: skill, $options: "i" };
+      matchQuery.expertise = { $regex: skill, $options: "i" };
     }
 
-    // 3. Get total count based on the FILTERED query (for correct pagination)
-    const count = await User.countDocuments(query);
+    const aggregationPipeline = [
+      { $match: matchQuery },
+      {
+        $lookup: {
+          from: "reviews",
+          localField: "_id",
+          foreignField: "mentor",
+          as: "reviews",
+        },
+      },
+      {
+        $addFields: {
+          reviewCount: { $size: "$reviews" },
+          averageRating: { $avg: "$reviews.rating" },
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          email: 1,
+          expertise: 1,
+          title: 1,
+          bio: 1,
+          avatar: 1,
+          reviewCount: 1,
+          averageRating: 1,
+        },
+      },
+    ];
 
-    // 4. Fetch the mentors using the filter, limit, and skip
-    const mentors = await User.find(query)
-      .select("_id name email expertise title bio avatar") // Select fields needed for the card
-      .limit(limit)
-      .skip(skip);
+    const mentors = await User.aggregate(aggregationPipeline)
+      .skip(skip)
+      .limit(limit);
+
+    const count = await User.countDocuments(matchQuery);
 
     res.json({
       mentors,

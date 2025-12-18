@@ -15,6 +15,8 @@ interface Mentor {
   expertise: string[];
   title?: string;
   image: string;
+  averageRating?: number;
+  reviewCount?: number;
 }
 
 

@@ -14,6 +14,7 @@ import bookingRoutes from "./routes/bookingRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import uploadRoutes from './routes/uploadRoutes.js'
+import reviewRoutes from "./routes/reviewRoutes.js";
 
 // --- Server and Socket.io Setup ---
 const app = express();
@@ -120,6 +121,7 @@ app.use("/api/bookings", bookingRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/ai", aiRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use("/api/reviews", reviewRoutes);
 
 // --- Server Listening ---
 // Use `server.listen` instead of `app.listen` to run both Express and Socket.io

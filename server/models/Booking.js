@@ -32,6 +32,10 @@ const bookingSchema = new mongoose.Schema({
   userMessage: { // A brief message from the mentee
     type: String,
   },
+  hasBeenReviewed: {
+    type: Boolean,
+    default: false,
+  },
 }, {
   timestamps: true,
 });
